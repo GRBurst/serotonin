@@ -6,16 +6,46 @@ import scala.math._
 import akka.routing._
 
 object Constants {
-  val tick = 20 milliseconds
-  val decay = 0.5
-  implicit val myactivationOrdering = Ordering.by[MyActivation, Long](_.time)
+  val spikeDuration = 100 milliseconds
+  val activationHalfLife = 100 * spikeDuration
+  val fireThreshold = 0.7
+  val deathThreshold = 0.001
+  val initialActivation = 0.3
+  val initialSpikeFactor = 1.0
+  val fireDelay = spikeDuration / 10
+  def activationFireDelay(activation: Double) = (fireDelay * (1.0 / (activation * activation))).asInstanceOf[FiniteDuration]
+
+  assert(initialActivation > deathThreshold)
+  assert(fireThreshold > deathThreshold)
+  assert(fireThreshold > initialActivation)
 }
 
 import Constants._
 
+object Messages {
+  case class Synapse(child: ActorRef, weight: Double)
+  case object Fire
+  case object Hebb // what fires together wires together
+  case object HebbEvaluation
+  case object GetActivation
+  case class MyActivation(neuron: ActorRef, activation: Double, time: Long)
+  implicit val myactivationOrdering = Ordering.by[MyActivation, Long](-_.time)
+  case object ImDead
+  case object StayAlive //TODO: do that with constructor / inheritance
+  case object IFollowYou
+
+  case object AddSensor
+  case object AddAction
+  case object AddNeuron
+  case class Signal(data: List[Double])
+
+}
+
+import Messages._
+
 object HelloAkkaScala extends App {
 
-  val system = ActorSystem("helloakka")
+  val system = ActorSystem("serotonin")
 
   val network = system.actorOf(Props[Network])
 
@@ -26,25 +56,7 @@ object HelloAkkaScala extends App {
 
   system.scheduler.schedule(0.seconds, 0.315.second, network, Signal(List(0.1, 0.2)))
   system.scheduler.schedule(0.seconds, 0.1654.second, network, Signal(List(0.35, 0.0)))
-
-  // Thread.sleep(20000)
-  // system.shutdown()
 }
-
-case class Synapse(child: ActorRef, weight: Double)
-case object Fire
-case object Hebb // what fires together wires together
-case object HebbEvaluation
-case object GetActivation
-case class MyActivation(neuron: ActorRef, activation: Double, time: Long)
-case object ImDead
-case object StayAlive //TODO: do that with constructor / inheritance
-case object IFollowYou
-
-case object AddSensor
-case object AddAction
-case object AddNeuron
-case class Signal(data: List[Double])
 
 class Network extends Actor {
   def newNeuron = context.actorOf(Props[Neuron])
@@ -81,15 +93,20 @@ class Network extends Actor {
         neurons(util.Random.nextInt.abs % neurons.size) ! GetActivation
 
     case HebbEvaluation =>
-      val maxInterval = 200
-      while (activations.size > 1 && activations.max.time - activations.min.time >= maxInterval) {
-        val current = activations.dequeue // jünge
-        val others = activations.takeWhile(a => current.time - a.time < maxInterval)
-        for (other <- others) {
-          val n = context.actorOf(Props[Neuron])
-          neurons += n
-          current.neuron ! Synapse(n, 0.2)
-          n ! Synapse(other.neuron, 0.2)
+      val maxInterval = spikeDuration * 1.5
+      while(activations.size > 1 && ((activations.max.time - activations.min.time) nanoseconds) <= maxInterval) {
+        val earlier = activations.dequeue // oldest
+        val laters = activations.takeWhile(later => ((earlier.time - later.time) nanoseconds) <= maxInterval)
+        for (later <- laters) {
+          val timeDiff = (later.time - earlier.time) nanoseconds
+          if( timeDiff < spikeDuration * 1.5 ) {
+            earlier.neuron ! Synapse(later.neuron, hebbWeight(earlier.activation, later.activation))
+          } else { // (spikeDuration * 1.5) <= timeDiff <= (spikeDuration * 2.5)
+            val n = context.actorOf(Props[Neuron])
+            neurons += n
+            earlier.neuron ! Synapse(n, 0.2)
+            n ! Synapse(later.neuron, 0.2)
+          }
         }
       }
       println(s"neurons: ${neurons.size}")
@@ -110,41 +127,50 @@ class Neuron extends Actor {
   val followers = mutable.ArrayBuffer[Synapse]()
   val predecessors = mutable.ArrayBuffer[ActorRef]()
 
-  var activation = 0.4
-  var spikeFactor = 0.4
   var lastReceivedSpike = now
-  var stayAlive = false
-
-  def applyDecay() {
+  var _activation = initialActivation
+  def activation = {
     val time = now
-    val timeDiff = time - lastReceivedSpike
-    val factor = pow(decay, timeDiff / 1000000000.0)
-    lastReceivedSpike = time
-    activation *= factor
+    val timeDiff = (time - lastReceivedSpike) nanoseconds
+    val factor = pow(0.5, timeDiff / activationHalfLife)
+    val value = _activation * factor
 
-    if (!stayAlive && activation < 0.01) {
+    if (!stayAlive && value < deathThreshold) {
       println("killed")
       context.parent ! ImDead
       predecessors.foreach { p => p ! ImDead }
       self ! PoisonPill
     }
+
+    value
   }
+
+  def activation_=(newActivation: Double) {
+    _activation = newActivation
+  }
+
+  var spikeFactor = initialSpikeFactor
+  var stayAlive = false
 
   context.system.scheduler.scheduleOnce((1 / activation) seconds, self, Fire)
 
   def receive = {
     case spike: Double =>
-      applyDecay()
       activation = (activation + spike * spikeFactor) min 1.0
+      lastReceivedSpike = now
     // println(s"\n-> ${self.path.name} Received spike $spike => $activation")
     case Fire =>
-      applyDecay()
-      followers.foreach { case Synapse(child, weight) => child ! weight }
-      val w = 1 / (activation * activation)
-      if (w < 20000)
-        context.system.scheduler.scheduleOnce(w milliseconds, self, Fire)
-    // println(s"$activation => $w")
-    // print(s".")
+      val a = activation
+      if (a > fireThreshold) {
+        followers.foreach {
+          case Synapse(child, weight) =>
+            context.system.scheduler.scheduleOnce(spikeDuration, child, weight)
+        }
+        context.system.scheduler.scheduleOnce(activationFireDelay(a), self, Fire)
+        // println(s"$activation => $w")
+        // print(s".")
+      }
+
     case s: Synapse =>
       followers += s
       sender ! IFollowYou
@@ -152,7 +178,7 @@ class Neuron extends Actor {
       predecessors += sender
 
     case GetActivation =>
-      if (activation > 0.7)
+      if (activation > fireThreshold)
         sender ! MyActivation(self, activation, System.currentTimeMillis)
 
     case ImDead =>
