@@ -14,6 +14,11 @@ object Constants {
   val initialSpikeFactor = 1.0
   val fireDelay = spikeDuration / 10
   def activationFireDelay(activation: Double) = (fireDelay * (1.0 / (activation * activation))).asInstanceOf[FiniteDuration]
+  def hebbWeight(earlierActivation: Double, laterActivation: Double) = 0.3
+  def hebbObservationInterval = spikeDuration / 10
+  def hebbLearnInterval = spikeDuration * 10
+  def strengthenWeight = 0.1
+  def sigmoid(x: Double) = tanh(x)
 
   assert(initialActivation > deathThreshold)
   assert(fireThreshold > deathThreshold)
@@ -23,7 +28,7 @@ object Constants {
 import Constants._
 
 object Messages {
-  case class Synapse(child: ActorRef, weight: Double)
+  case class Strengthen(target: ActorRef)
   case object Fire
   case object Hebb // what fires together wires together
   case object HebbEvaluation
@@ -56,6 +61,9 @@ object HelloAkkaScala extends App {
 
   system.scheduler.schedule(0.seconds, 0.315.second, network, Signal(List(0.1, 0.2)))
   system.scheduler.schedule(0.seconds, 0.1654.second, network, Signal(List(0.35, 0.0)))
+
+  Thread.sleep(10000)
+  system.terminate()
 }
 
 class Network extends Actor {
@@ -67,8 +75,8 @@ class Network extends Actor {
 
   val activations = mutable.PriorityQueue.empty[MyActivation]
 
-  context.system.scheduler.schedule(0 seconds, 0.1 second, self, Hebb)
-  context.system.scheduler.schedule(0 seconds, 1.0 second, self, HebbEvaluation)
+  context.system.scheduler.schedule(0 seconds, hebbObservationInterval, self, Hebb)
+  context.system.scheduler.schedule(0 seconds, hebbLearnInterval, self, HebbEvaluation)
 
   def receive = {
     case AddSensor =>
@@ -93,20 +101,15 @@ class Network extends Actor {
         neurons(util.Random.nextInt.abs % neurons.size) ! GetActivation
 
     case HebbEvaluation =>
+      println(s"learning from ${activations.size} active points of ${neurons.size}")
       val maxInterval = spikeDuration * 1.5
-      while(activations.size > 1 && ((activations.max.time - activations.min.time) nanoseconds) <= maxInterval) {
-        val earlier = activations.dequeue // oldest
-        val laters = activations.takeWhile(later => ((earlier.time - later.time) nanoseconds) <= maxInterval)
-        for (later <- laters) {
-          val timeDiff = (later.time - earlier.time) nanoseconds
-          if( timeDiff < spikeDuration * 1.5 ) {
-            earlier.neuron ! Synapse(later.neuron, hebbWeight(earlier.activation, later.activation))
-          } else { // (spikeDuration * 1.5) <= timeDiff <= (spikeDuration * 2.5)
-            val n = context.actorOf(Props[Neuron])
-            neurons += n
-            earlier.neuron ! Synapse(n, 0.2)
-            n ! Synapse(later.neuron, 0.2)
-          }
+      // we ensure that our observation window is large enough to avoid discarding possible connections
+      if (activations.nonEmpty) println(s"${activations.size} > 1 && ${((activations.min.time - activations.max.time) milliseconds)} >= $maxInterval)")
+      while (activations.size > 1 && ((activations.min.time - activations.max.time) milliseconds) >= maxInterval) {
+        val earlier = activations.dequeue
+        val laters = activations.takeWhile(later => ((earlier.time - later.time) milliseconds) <= maxInterval)
+        for (later <- laters if later != earlier) {
+          earlier.neuron ! Strengthen(later.neuron)
         }
       }
       println(s"neurons: ${neurons.size}")
@@ -124,8 +127,8 @@ class Network extends Actor {
 class Neuron extends Actor {
   def now = System.nanoTime
 
-  val followers = mutable.ArrayBuffer[Synapse]()
-  val predecessors = mutable.ArrayBuffer[ActorRef]()
+  val targets = mutable.HashMap.empty[ActorRef, Double].withDefaultValue(0.0)
+  val predecessors = mutable.HashSet[ActorRef]()
 
   var lastReceivedSpike = now
   var _activation = initialActivation
@@ -156,24 +159,26 @@ class Neuron extends Actor {
 
   def receive = {
     case spike: Double =>
-      activation = (activation + spike * spikeFactor) min 1.0
+      activation = sigmoid(activation + spike * spikeFactor)
       lastReceivedSpike = now
     // println(s"\n-> ${self.path.name} Received spike $spike => $activation")
     case Fire =>
       val a = activation
       if (a > fireThreshold) {
-        followers.foreach {
-          case Synapse(child, weight) =>
-            context.system.scheduler.scheduleOnce(spikeDuration, child, weight)
+        targets.foreach {
+          case (target, weight) =>
+            context.system.scheduler.scheduleOnce(spikeDuration, target, weight)
         }
         context.system.scheduler.scheduleOnce(activationFireDelay(a), self, Fire)
         // println(s"$activation => $w")
         // print(s".")
       }
 
-    case s: Synapse =>
-      followers += s
+    case Strengthen(target) =>
+      targets(target) = sigmoid(targets(target) + strengthenWeight)
+      println(s"Strenghen: ${self.path.name} -[${targets(target)}]-> ${target.path.name}")
       sender ! IFollowYou
+
     case IFollowYou =>
       predecessors += sender
 
@@ -182,7 +187,7 @@ class Neuron extends Actor {
         sender ! MyActivation(self, activation, System.currentTimeMillis)
 
     case ImDead =>
-      followers --= followers.find(_.child == sender)
+      targets -= sender
 
     case StayAlive =>
       stayAlive = true
