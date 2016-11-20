@@ -1,23 +1,28 @@
-import akka.actor.{ActorRef, ActorSystem, Props, Actor, Inbox, PoisonPill}
-import scala.concurrent.duration._
-import scala.concurrent.ExecutionContext.Implicits.global
+import concurrent.duration._
+import concurrent.ExecutionContext.Implicits.global
 import collection.mutable
-import scala.math._
-import akka.routing._
+import math._
+import akka.actor.{ActorRef, ActorSystem, Props, Actor, PoisonPill}
+import akka.pattern.{ask,pipe}
+import akka.util.Timeout
 
 object Constants {
   val spikeDuration = 100 milliseconds
   val potentialHalfLife = 100 * spikeDuration
-  val fireThreshold = 0.7
+  val initialFireThreshold = 0.7
   val restPotential = 0.3
   val fireDelay = spikeDuration / 10
   val pruneThreshold = 10 seconds
+  def lowerFireThreshold(threshold:Double) = threshold*0.9
+  def higherFireThreshold(threshold:Double) = threshold/0.9
 
   def hebbObservationInterval = spikeDuration / 10
   def hebbLearnInterval = spikeDuration * 10
   def strengthenWeight = 0.1
 
-  assert(fireThreshold > restPotential)
+  implicit val timeout = Timeout(60 seconds)
+
+  assert(initialFireThreshold > restPotential)
 }
 
 import Constants._
@@ -31,11 +36,10 @@ object Messages {
   case class FireEvent(neuron: ActorRef, time: FiniteDuration)
   implicit val mypotentialOrdering = Ordering.by[FireEvent, FiniteDuration](-_.time)
   case object ImDead
-  case object StayAlive //TODO: do that with constructor / inheritance
   case object IFollowYou
   case object AddSensor
   case object AddAction
-  case object AddNeuron
+  case class AddNeuron(fireThreshold: Double)
   case class Signal(data: List[Double])
 
 }
@@ -67,7 +71,7 @@ object HelloAkkaScala extends App {
 }
 
 class Network extends Actor {
-  def newNeuron = context.actorOf(Props[Neuron])
+  def newNeuron(fireThreshold: Double = initialFireThreshold, stayAlive: Boolean = false) = context.actorOf(Props(new Neuron(fireThreshold, stayAlive)))
 
   val sensors = mutable.ArrayBuffer.empty[ActorRef]
   val actions = mutable.ArrayBuffer.empty[ActorRef]
@@ -80,16 +84,19 @@ class Network extends Actor {
 
   def receive = {
     case AddSensor =>
-      val n = newNeuron
-      n ! StayAlive
+      val n = newNeuron(stayAlive = true)
       sensors += n
       neurons += n
 
     case AddAction =>
-      val n = newNeuron
-      n ! StayAlive
+      val n = newNeuron(stayAlive = true)
       actions += n
       neurons += n
+
+    case AddNeuron(fireThreshold) =>
+      val n = newNeuron(fireThreshold)
+      neurons += n
+      sender ! n
 
     case Signal(data) =>
       for ((sensor, d) <- sensors zip data) {
@@ -101,10 +108,10 @@ class Network extends Actor {
         neurons(util.Random.nextInt.abs % neurons.size) ! Probe
 
     case HebbEvaluation =>
-      println(s"learning from ${fireData.size} active points of ${neurons.size}")
+      // println(s"learning from ${fireData.size} active points of ${neurons.size}")
       val maxInterval = spikeDuration * 1.5
       // we ensure that our observation window is large enough to avoid discarding possible connections
-      if (fireData.nonEmpty) println(s"${fireData.size} > 1 && ${(fireData.min.time - fireData.max.time)} >= $maxInterval)")
+      // if (fireData.nonEmpty) println(s"${fireData.size} > 1 && ${(fireData.min.time - fireData.max.time)} >= $maxInterval)")
       while (fireData.size > 1 && (fireData.min.time - fireData.max.time) >= maxInterval) {
         val earlier = fireData.dequeue
         val laters = fireData.takeWhile(later => (earlier.time - later.time) <= maxInterval)
@@ -124,11 +131,11 @@ class Network extends Actor {
   }
 }
 
-class Neuron extends Actor {
+class Neuron(var fireThreshold: Double, stayAlive: Boolean) extends Actor {
   import context.{parent => network}
 
   val targets = mutable.HashMap.empty[ActorRef, Double].withDefaultValue(0.0)
-  val predecessors = mutable.HashSet[ActorRef]()
+  val sources = mutable.HashSet[ActorRef]()
 
   var lastReceivedSpike = localNow
   var lastFired = globalNow
@@ -144,8 +151,6 @@ class Neuron extends Actor {
     _potential = newPotential
   }
 
-  var stayAlive = false
-
   def receive = {
     case spike: Double =>
       val high = potential + spike
@@ -156,37 +161,40 @@ class Neuron extends Actor {
     // println(s"\n-> ${self.path.name} Received spike $spike => $potential")
 
     case Fire =>
-      targets.foreach {
-        case (target, weight) =>
-          context.system.scheduler.scheduleOnce(spikeDuration, target, weight)
+      if(targets.isEmpty) {
+        (network ? AddNeuron(higherFireThreshold(fireThreshold))).mapTo[ActorRef].map ( n =>          Strengthen(n)
+          ).pipeTo(self)
+      } else {
+        targets.foreach {
+          case (target, weight) =>
+            context.system.scheduler.scheduleOnce(spikeDuration, target, weight)
+        }
       }
       potential = restPotential
       lastFired = globalNow
+      fireThreshold = lowerFireThreshold(fireThreshold)
     // println(s"$potential => $w")
     // print(s".")
 
     case Strengthen(target) =>
       targets(target) = (targets(target) + strengthenWeight) min 1.0
-      println(s"Strenghen: ${self.path.name} -[${targets(target)}]-> ${target.path.name}")
+      // println(s"Strenghen: ${self.path.name} -[${targets(target)}]-> ${target.path.name}")
       sender ! IFollowYou
 
     case IFollowYou =>
-      predecessors += sender
+      sources += sender
 
     case Probe =>
       if (!stayAlive && (localNow - lastReceivedSpike) > pruneThreshold) {
         println(s"pruned: ${self.path.name}")
         network ! ImDead
-        predecessors.foreach { p => p ! ImDead }
+        sources.foreach { p => p ! ImDead }
         self ! PoisonPill
       } else
         sender ! FireEvent(self, globalNow)
 
     case ImDead =>
       targets -= sender
-
-    case StayAlive =>
-      stayAlive = true
 
     case unknown =>
       println(s"${self.path.name}: received unknown message: $unknown")
