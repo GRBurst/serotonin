@@ -1,4 +1,4 @@
-import akka.actor.{ ActorRef, ActorSystem, Props, Actor, Inbox, PoisonPill }
+import akka.actor.{ActorRef, ActorSystem, Props, Actor, Inbox, PoisonPill}
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 import collection.mutable
@@ -6,6 +6,7 @@ import scala.math._
 import akka.routing._
 
 object Constants {
+  val tick = 20 milliseconds
   val decay = 0.5
   implicit val myactivationOrdering = Ordering.by[MyActivation, Long](_.time)
 }
@@ -73,7 +74,7 @@ class Network extends Actor {
     case Signal(data) =>
       for ((sensor, d) <- sensors zip data) {
         sensor ! d
-
+      }
 
     case Hebb =>
       if (neurons.size > 1)
