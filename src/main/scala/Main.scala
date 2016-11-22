@@ -1,10 +1,12 @@
 import concurrent.duration._
 import concurrent.ExecutionContext.Implicits.global
-import collection.mutable
+import collection.{mutable, breakOut}
 import math._
 import akka.actor.{ActorRef, ActorSystem, Props, Actor, PoisonPill}
 import akka.pattern.{ask,pipe}
 import akka.util.Timeout
+import pharg._
+import scala.unchecked
 
 object Constants {
   val spikeDuration = 100 milliseconds
@@ -14,7 +16,7 @@ object Constants {
   val fireDelay = spikeDuration / 10
   val pruneThreshold = 10 seconds
   def lowerFireThreshold(threshold:Double) = threshold*0.9
-  def higherFireThreshold(threshold:Double) = threshold/0.9
+  def higherFireThreshold(threshold:Double) = threshold*1.374
 
   def hebbObservationInterval = spikeDuration / 10
   def hebbLearnInterval = spikeDuration * 10
@@ -41,7 +43,8 @@ object Messages {
   case object AddAction
   case class AddNeuron(fireThreshold: Double)
   case class Signal(data: List[Double])
-
+  case object Graph
+  case object DumpGraph
 }
 
 import Messages._
@@ -52,7 +55,7 @@ object Common {
 }
 import Common._
 
-object HelloAkkaScala extends App {
+object Serotonin extends App {
 
   val system = ActorSystem("serotonin")
 
@@ -66,7 +69,7 @@ object HelloAkkaScala extends App {
   system.scheduler.schedule(0.seconds, 0.315.second, network, Signal(List(0.1, 0.2)))
   system.scheduler.schedule(0.seconds, 0.1654.second, network, Signal(List(0.35, 0.0)))
 
-  Thread.sleep(10000)
+  Thread.sleep(20000)
   system.terminate()
 }
 
@@ -77,10 +80,17 @@ class Network extends Actor {
   val actions = mutable.ArrayBuffer.empty[ActorRef]
   val neurons = mutable.ArrayBuffer.empty[ActorRef]
 
+  var graph = DirectedGraphData[ActorRef,Double,Double](Set.empty, Set.empty, Map.empty, Map.empty)
+
   val fireData = mutable.PriorityQueue.empty[FireEvent]
 
-  context.system.scheduler.schedule(0 seconds, hebbObservationInterval, self, Hebb)
-  context.system.scheduler.schedule(0 seconds, hebbLearnInterval, self, HebbEvaluation)
+  // context.system.scheduler.schedule(0 seconds, hebbObservationInterval, self, Hebb)
+  // context.system.scheduler.schedule(0 seconds, hebbLearnInterval, self, HebbEvaluation)
+
+  // context.system.scheduler.schedule(5 seconds, 10 seconds, self, Graph)
+  // context.system.scheduler.schedule(14 seconds, 10 seconds, self, DumpGraph)
+  context.system.scheduler.scheduleOnce(5 seconds, self, Graph)
+  context.system.scheduler.scheduleOnce(14 seconds, self, DumpGraph)
 
   def receive = {
     case AddSensor =>
@@ -115,7 +125,7 @@ class Network extends Actor {
       while (fireData.size > 1 && (fireData.min.time - fireData.max.time) >= maxInterval) {
         val earlier = fireData.dequeue
         val laters = fireData.takeWhile(later => (earlier.time - later.time) <= maxInterval)
-        for (later <- laters if later != earlier) {
+        for (later <- laters if later.neuron != earlier.neuron) {
           earlier.neuron ! Strengthen(later.neuron)
         }
       }
@@ -128,7 +138,32 @@ class Network extends Actor {
       neurons -= sender
       sensors -= sender
       actions -= sender
-  }
+
+    case Graph =>
+      graph = DirectedGraphData[ActorRef,Double,Double](neurons.toSet, Set.empty, Map.empty, Map.empty)
+      neurons.foreach{n => n ! Graph}
+
+    case DumpGraph =>
+      // ${neurons.map {n => s"${n.path.name}"}}
+      val dot = s"""
+        digraph network {
+          ${(sensors.map {n => s"""${n.path.name.tail}[shape = circle, rank = "source", style = filled, fillcolor = "#FFAB38"];"""}).mkString}
+          ${(actions.map {n => s"""${n.path.name.tail}[shape = circle, rank = "sink", style = filled, fillcolor = "#02E8D5"];"""}).mkString}
+          ${((neurons -- actions -- sensors).map {n => s"${n.path.name.tail}[shape = circle];"}).mkString}
+          ${(graph.edges map { case (e: Edge[ActorRef] @unchecked) =>
+            s"${e.in.path.name.tail} -> ${e.out.path.name.tail};"
+          }).mkString
+          }
+        }
+        """
+        val p = new java.io.PrintWriter("/tmp/sero_graph.dot")
+        p.write(dot)
+        p.close()
+
+    case e: List[Edge[ActorRef]] @unchecked =>
+      graph ++= e
+
+      }
 }
 
 class Neuron(var fireThreshold: Double, stayAlive: Boolean) extends Actor {
@@ -195,6 +230,9 @@ class Neuron(var fireThreshold: Double, stayAlive: Boolean) extends Actor {
 
     case ImDead =>
       targets -= sender
+
+    case Graph =>
+      sender ! targets.map{case (n,w) => Edge(self,n)}(breakOut[mutable.Map[ActorRef, Double], Edge[ActorRef], List[Edge[ActorRef]]])
 
     case unknown =>
       println(s"${self.path.name}: received unknown message: $unknown")
