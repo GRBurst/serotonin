@@ -1,17 +1,44 @@
 name := "serotonin"
 
-scalaVersion := "2.12.0"
+scalaVersion in ThisBuild := "2.12.0"
+enablePlugins(WorkbenchPlugin)
 
-libraryDependencies ++= (
-  "com.typesafe.akka" %% "akka-actor" % "2.4.12" ::
-  "com.github.fdietze" %% "pharg" % "0.1.0-SNAPSHOT" ::
-  Nil
-)
+lazy val root = project.in(file(".")).
+  aggregate(serotoninJS, serotoninJVM).
+  settings(
+    publish := {},
+    publishLocal := {}
+  )
 
-// ctrl+c only cancels run
-// cancelable in Global := true
+lazy val serotonin = crossProject.in(file(".")).
+  settings(
+    name := "serotonin",
+    version := "0.1-SNAPSHOT",
+    libraryDependencies ++= (
+      "com.github.fdietze" %%% "pharg" % "0.1.0-SNAPSHOT" ::
+      Nil
+    )
+  )
+  .jvmSettings(
+    libraryDependencies ++= (
+      "org.scala-js" %% "scalajs-stubs" % "0.6.13" % "provided" ::
+      "com.typesafe.akka" %% "akka-actor" % "2.4.12" ::
+      Nil
+    )
+  )
+  .jsSettings(
+    libraryDependencies ++= (
+      "eu.unicredit" %%% "akkajsactor" % "0.2.4.12" ::
+      "org.singlespaced" %%% "scalajs-d3" % "0.3.4" ::
+      Nil
+    ),
+    persistLauncher := true
+  )
 
-scalacOptions ++= (
+lazy val serotoninJVM = serotonin.jvm
+lazy val serotoninJS = serotonin.js
+
+scalacOptions in ThisBuild ++= (
   "-unchecked" ::
   "-deprecation" ::
   "-feature" ::
