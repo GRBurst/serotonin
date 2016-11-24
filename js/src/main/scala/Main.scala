@@ -2,48 +2,61 @@ package serotonin
 
 import scala.scalajs.js.JSApp
 import scala.scalajs.js
+import scala.scalajs.js.annotation._
 import scala.scalajs.js.timers._
 import js.JSConverters._
 
 import org.singlespaced.d3js.Ops._
 import org.singlespaced.d3js.d3
+import org.singlespaced.d3js
+
+@ScalaJSDefined
+class Node(var x: js.UndefOr[Double] = js.undefined, var y: js.UndefOr[Double] = js.undefined) extends js.Object
+class Link(val source: Node, val target: Node) extends d3js.Link[Node]
 
 object Main extends JSApp {
   def main() {
+    val dimensions @ (width, height) = (400.0, 300.0)
     val svg = d3.select("#container")
       .append("svg")
-      .attr("width", 300)
-      .attr("height", 400)
+      .attr("width", width)
+      .attr("height", height)
 
-    def update(list: js.Array[Int]) {
-      println(list)
-      val circles = svg.selectAll("circle").data(list, (d:Int) => d.toString)
+    val nodes = js.Array(new Node(), new Node())
+    val links = js.Array(new Link(nodes(0), nodes(1)))
 
-      circles.enter()
-        .append("circle")
-        .attr("r", 0)
-        .attr("cx", (d: Int) => d)
-        .attr("cy", 50)
-        // .style("opacity", 0)
-        .attr("fill", "green")
+    var force = d3.layout.force()
+      .nodes(nodes)
+      .links(links)
+      .size(dimensions)
+      .linkDistance(60)
 
-      circles.transition().duration(1000)
-        .attr("r", 10)
-        .attr("cx", (d: Int) => d)
-        .attr("cy", 100)
-        // .style("opacity", 1)
-        .attr("fill", "black")
+    val circles = svg.selectAll("circle")
+      .data(nodes)
+    val lines = svg.selectAll("line")
+      .data(links)
 
-      circles.exit().transition().duration(1000)
-        .attr("r", 0)
-        // .style("opacity", 0)
-        .attr("cy", 150)
-        .attr("fill", "red")
-        .remove()
-    }
+    lines.enter()
+      .append("line")
+      .attr("stroke", "gray")
 
-    setInterval(2000) {
-      update(Seq.fill(5)(20 + (util.Random.nextInt.abs % 5)*30 ).toJSArray)
-    }
+    circles.enter()
+      .append("circle")
+      .attr("r", 10)
+      .attr("fill", "green")
+
+    force.on("tick", { event =>
+      lines
+        .attr("x1", (d: Link) => d.source.x)
+        .attr("y1", (d: Link) => d.source.y)
+        .attr("x2", (d: Link) => d.target.x)
+        .attr("y2", (d: Link) => d.target.y)
+
+      circles
+        .attr("cx", (d: Node) => d.x)
+        .attr("cy", (d: Node) => d.y)
+    })
+
+    force.start()
   }
 }
