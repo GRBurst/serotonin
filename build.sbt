@@ -1,7 +1,6 @@
 name := "serotonin"
 
 scalaVersion in ThisBuild := "2.12.0"
-enablePlugins(WorkbenchPlugin)
 
 lazy val root = project.in(file(".")).
   aggregate(serotoninJS, serotoninJVM).
@@ -36,7 +35,7 @@ lazy val serotonin = crossProject.in(file(".")).
   )
 
 lazy val serotoninJVM = serotonin.jvm
-lazy val serotoninJS = serotonin.js
+lazy val serotoninJS = serotonin.js.enablePlugins(WorkbenchPlugin)
 
 scalacOptions in ThisBuild ++= (
   "-unchecked" ::
