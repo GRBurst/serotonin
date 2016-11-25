@@ -1,4 +1,4 @@
-package serotonin
+package serotonin.actor
 
 import concurrent.duration._
 import concurrent.ExecutionContext.Implicits.global
@@ -10,9 +10,9 @@ import akka.util.Timeout
 import pharg._
 import scala.unchecked
 
-import Constants._
+import serotonin.Constants._
+import serotonin.Common._
 import Messages._
-import Common._
 
 class Neuron(var fireThreshold: Double, stayAlive: Boolean) extends Actor {
   import context.{parent => network}
@@ -32,6 +32,7 @@ class Neuron(var fireThreshold: Double, stayAlive: Boolean) extends Actor {
 
   def potential_=(newPotential: Double) {
     _potential = newPotential
+    network ! UpdatedPotential(self, newPotential)
   }
 
   def receive = {
@@ -49,16 +50,20 @@ class Neuron(var fireThreshold: Double, stayAlive: Boolean) extends Actor {
       } else {
         targets.foreach {
           case (target, weight) =>
+            network ! Spike(self, target, weight)
             context.system.scheduler.scheduleOnce(spikeDuration, target, weight)
         }
       }
       potential = restPotential
       lastFired = globalNow
       fireThreshold = lowerFireThreshold(fireThreshold)
+      network ! UpdatedFireThreshold(self, fireThreshold)
     // println(s"$potential => $w")
     // print(s".")
 
     case Strengthen(target) =>
+      if (targets.get(target).isEmpty) network ! AddedSynapse(self, target, strengthenWeight)
+      else network ! UpdatedSynapseWeight(self, target, (targets(target) + strengthenWeight) min 1.0)
       targets(target) = (targets(target) + strengthenWeight) min 1.0
       // println(s"Strenghen: ${self.path.name} -[${targets(target)}]-> ${target.path.name}")
       sender ! IFollowYou

@@ -10,7 +10,7 @@ import pharg._
 import scala.unchecked
 
 object Constants {
-  val spikeDuration = 100 milliseconds
+  val spikeDuration = 300 milliseconds
   val potentialHalfLife = 100 * spikeDuration
   val initialFireThreshold = 0.7
   val restPotential = 0.3

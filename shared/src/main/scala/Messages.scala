@@ -1,4 +1,4 @@
-package serotonin
+package serotonin.actor
 import akka.actor.ActorRef
 import concurrent.duration._
 
@@ -18,4 +18,11 @@ object Messages {
   case class Signal(data: List[Double])
   case object Graph
   case object DumpGraph
+
+  case class AddedSynapse(source: ActorRef, target: ActorRef, weight: Double)
+  case class AddedNeuron(neuron: ActorRef, fireThreshold: Double)
+  case class Spike(source: ActorRef, target: ActorRef, weight: Double)
+  case class UpdatedFireThreshold(neuron: ActorRef, fireThreshold: Double)
+  case class UpdatedSynapseWeight(source: ActorRef, target: ActorRef, weight: Double)
+  case class UpdatedPotential(neuron: ActorRef, potential: Double)
 }
