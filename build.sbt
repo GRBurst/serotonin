@@ -15,6 +15,7 @@ lazy val serotonin = crossProject.in(file(".")).
     version := "0.1-SNAPSHOT",
     libraryDependencies ++= (
       "com.github.fdietze" %%% "pharg" % "0.1.0-SNAPSHOT" ::
+      "com.github.fdietze" %%% "vectory" % "0.1.0-SNAPSHOT" ::
       Nil
     )
   )

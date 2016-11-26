@@ -31,19 +31,19 @@ trait Network extends Actor {
   // context.system.scheduler.schedule(0 seconds, hebbLearnInterval, self, HebbEvaluation)
 
   val networkBehavior: Receive = {
-    case AddSensor(sensorType) =>
+    case AddSensor(sensorType, fixedPos) =>
       val n = newNeuron(stayAlive = true)
       sensors += n
-      self ! AddedNeuron(n, initialFireThreshold)
+      self ! AddedNeuron(n, initialFireThreshold, fixedPos)
       sensorType match {
         case KeyboardSensorType(key) => context.actorOf(Props(new KeyboardSensor(key, n)))
       }
     // graph += n
 
-    case AddMotor(motor) =>
+    case AddMotor(motor, fixedPos) =>
       val n = newNeuron(stayAlive = true, attachedMotor = Some(motor))
       actions += n
-      self ! AddedNeuron(n, initialFireThreshold)
+      self ! AddedNeuron(n, initialFireThreshold, fixedPos)
     // graph += n
 
     case AddNeuron(fireThreshold) =>

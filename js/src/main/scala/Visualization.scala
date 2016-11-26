@@ -15,6 +15,7 @@ import akka.actor._
 import scala.concurrent.duration._
 import collection.mutable
 import math._
+import vectory._
 
 import Constants._
 
@@ -24,22 +25,27 @@ class Neuron(
   var fireThreshold: Double,
   var potential: Double,
   var x: js.UndefOr[Double] = js.undefined,
-  var y: js.UndefOr[Double] = js.undefined
+  var y: js.UndefOr[Double] = js.undefined,
+  val fixedPos: js.UndefOr[Vec2] = js.undefined
 ) extends js.Object {
-  override def hashCode = id.hashCode
+  val fixed = fixedPos.isDefined
+  fixedPos.foreach {
+    case Vec2(fx, fy) =>
+      x = fx
+      y = fy
+  }
 
   def canEqual(a: Any) = a.isInstanceOf[Neuron]
-
-  override def equals(that: Any): Boolean =
-    that match {
-      case that: Neuron => that.canEqual(this) && this.id == that.id
-      case _ => false
-    }
+  override def equals(that: Any): Boolean = that match {
+    case that: Neuron => that.canEqual(this) && this.id == that.id
+    case _ => false
+  }
+  override def hashCode = id.hashCode
 }
 case class Synapse(source: Neuron, target: Neuron, weight: Double) extends d3js.Link[Neuron]
 
-class Visualization {
-  val dimensions @ (width, height) = (400.0, 300.0)
+class Visualization(val dimensions: Vec2 = Vec2(400, 300)) {
+  import dimensions.{width, height}
   val svg = d3.select("#container")
     .append("svg")
     .attr("width", width)
@@ -50,7 +56,7 @@ class Visualization {
   val spikeGroup = svg.append("g")
 
   val force = d3.layout.force[Neuron, Synapse]()
-    .size(dimensions)
+    .size(dimensions.toTuple)
     .linkDistance(30)
     .charge(-60)
 
@@ -78,6 +84,8 @@ class Visualization {
 
     neuronCircles.enter()
       .append("circle")
+      .attr("stroke", "black")
+      .attr("stroke-width", 1)
 
     updateGraphAppearance()
 
@@ -90,8 +98,6 @@ class Visualization {
       .attr("r", (d: Neuron) => 1.0 / sqrt(restPotential + d.fireThreshold) * 5)
       // .style("opacity", (d: Neuron) => 1.0 / d.fireThreshold)
       .attr("fill", (d: Neuron) => potentialColor(d.potential / (restPotential + d.fireThreshold)))
-      .attr("stroke", "black")
-      .attr("stroke-width", 1)
       .attr("cx", (d: Neuron) => d.x)
       .attr("cy", (d: Neuron) => d.y)
 
@@ -99,7 +105,7 @@ class Visualization {
       .attr("stroke-width", (d: Synapse) => d.weight * 3)
   }
 
-  def sendSpike(source: Neuron, target: Neuron, strength: Double) {
+  def visualizeSpike(source: Neuron, target: Neuron, strength: Double) {
     spikeGroup
       .append("circle")
       .attr("r", strength * 30)

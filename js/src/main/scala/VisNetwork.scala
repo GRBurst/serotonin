@@ -25,12 +25,15 @@ class VisNetwork(visualization: Visualization) extends Actor with actor.Network 
     visualization.updateGraphTopology(neurons.values.toJSArray, synapses.values.toJSArray)
   }
   import visualization.updateGraphAppearance
+  val center = visualization.dimensions / 2
 
   def receive: Receive = ({
 
-    case AddedNeuron(neuron, fireThreshold) =>
+    case AddedNeuron(neuron, fireThreshold, fixedPos) =>
       val id = neuron.path.name
-      neurons += (id -> new Neuron(id, fireThreshold, restPotential, visualization.width / 2, visualization.height / 2))
+      neurons += (id -> new Neuron(id, fireThreshold, restPotential,
+        center.x, center.y,
+        fixedPos.orUndefined))
       updateGraphTopology()
 
     case AddedSynapse(a, b, weight) =>
@@ -40,7 +43,7 @@ class VisNetwork(visualization: Visualization) extends Actor with actor.Network 
       updateGraphTopology()
 
     case Spike(a, b, weight) =>
-      visualization.sendSpike(neurons(a.path.name), neurons(b.path.name), weight)
+      visualization.visualizeSpike(neurons(a.path.name), neurons(b.path.name), weight)
 
     case UpdatedFireThreshold(neuron, threshold) =>
       neurons(neuron.path.name).fireThreshold = threshold
