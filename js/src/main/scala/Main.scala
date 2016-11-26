@@ -18,32 +18,12 @@ import collection.mutable
 import actor.Messages._
 import Constants._
 
-class Light(color: String) extends Actor {
-  val bgColor = "#222222"
-  val light = d3.select("#container").append("div")
-  light
-    .style("display", "inline-block")
-    .style("margin", "2px")
-    .style("border", "1px solid black")
-    .style("width", "50px")
-    .style("height", "50px")
-    .style("background", bgColor)
-
-  def receive = {
-    case Fire =>
-      light
-        .style("background", color)
-        .transition().duration(300)
-        .style("background", bgColor)
-  }
-}
-
 object Main extends JSApp {
   def main() {
     lazy val system = ActorSystem("serotonin")
     import system.dispatcher // Execution Context
     system.scheduler.scheduleOnce(0 seconds) {
-      val lightA = system.actorOf(Props(new Light("#A8FFB5")))
+      val lightA = system.actorOf(Props(new Light("#A8F5FF")))
       val lightB = system.actorOf(Props(new Light("#FFEBA8")))
       val viz = new Visualization()
       val network = system.actorOf(Props(new VisNetwork(viz)))
