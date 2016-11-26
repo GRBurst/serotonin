@@ -55,8 +55,8 @@ class Neuron(var fireThreshold: Double, stayAlive: Boolean, attachedMotor: Optio
       } else {
         targets.foreach {
           case (target, weight) =>
-            network ! Spike(self, target, weight)
-            context.system.scheduler.scheduleOnce(spikeDuration, target, weight)
+            network ! Spike(self, target, weight) // For visualization
+            context.system.scheduler.scheduleOnce(spikeDuration, target, weight) // For hebb etc
         }
       }
       attachedMotor.foreach { motor =>
@@ -91,23 +91,11 @@ class Neuron(var fireThreshold: Double, stayAlive: Boolean, attachedMotor: Optio
       target ! IAmSourceOfYou
 
     case IAmSourceOfYou =>
-      // println(s"($sender) is source of me ($self)")
       sources += sender
 
-    case Probe =>
-      if (!stayAlive && (localNow - lastReceivedSpike) > pruneThreshold) {
-        println(s"pruned: ${self.path.name}")
-        network ! ImDead
-        sources.foreach { p => p ! ImDead }
-        self ! PoisonPill
-      } else
-        sender ! FireEvent(self, globalNow)
 
     case ImDead =>
       targets -= sender
-
-    case Graph =>
-      sender ! targets.map { case (n, w) => Edge(self, n) }(breakOut[mutable.Map[ActorRef, Double], Edge[ActorRef], List[Edge[ActorRef]]])
 
     case unknown =>
       println(s"${self.path.name}: received unknown message: $unknown")

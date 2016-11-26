@@ -42,8 +42,9 @@ class VisNetwork(visualization: Visualization) extends Actor with actor.Network 
       synapses += ((aId -> bId) -> new Synapse(neurons(aId), neurons(bId), weight))
       updateGraphTopology()
 
-    case Spike(a, b, weight) =>
+    case spike@Spike(a, b, weight) =>
       visualization.visualizeSpike(neurons(a.path.name), neurons(b.path.name), weight)
+      networkBehavior(spike)
 
     case UpdatedFireThreshold(neuron, threshold) =>
       neurons(neuron.path.name).fireThreshold = threshold

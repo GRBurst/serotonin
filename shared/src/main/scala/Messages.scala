@@ -6,11 +6,8 @@ import vectory._
 object Messages {
   case class Strengthen(target: ActorRef)
   case object Fire
-  case object Hebb // what fires together wires together
-  case object HebbEvaluation
-  case object Probe
-  case class FireEvent(neuron: ActorRef, time: FiniteDuration)
-  implicit val mypotentialOrdering = Ordering.by[FireEvent, FiniteDuration](-_.time)
+  case class SpikeEvent(neuron: ActorRef, time: FiniteDuration)
+  implicit val mypotentialOrdering = Ordering.by[SpikeEvent, FiniteDuration](-_.time)
   case object ImDead
   case object IAmSourceOfYou
   sealed trait SensorType
@@ -19,8 +16,6 @@ object Messages {
   case class AddMotor(motor: ActorRef, fixedPos: Option[Vec2] = None)
   case class AddNeuron(fireThreshold: Double)
   case class Signal(data: List[Double])
-  case object Graph
-  case object DumpGraph
 
   case class AddedSynapse(source: ActorRef, target: ActorRef, weight: Double)
   case class AddedNeuron(neuron: ActorRef, fireThreshold: Double, fixedPos: Option[Vec2] = None)
