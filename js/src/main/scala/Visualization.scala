@@ -42,7 +42,7 @@ class Neuron(
   }
   override def hashCode = id.hashCode
 }
-case class Synapse(source: Neuron, target: Neuron, weight: Double) extends d3js.Link[Neuron]
+case class Synapse(source: Neuron, target: Neuron, var weight: Double) extends d3js.Link[Neuron]
 
 class Visualization(val dimensions: Vec2 = Vec2(400, 300)) {
   import dimensions.{width, height}
@@ -108,7 +108,7 @@ class Visualization(val dimensions: Vec2 = Vec2(400, 300)) {
   def visualizeSpike(source: Neuron, target: Neuron, strength: Double) {
     spikeGroup
       .append("circle")
-      .attr("r", strength * 30)
+      .attr("r", 3 + strength * 3)
       .attr("fill", "#FFE77D")
       .attr("stroke", "black")
       .attr("stroke-width", "0.5")

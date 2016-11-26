@@ -42,7 +42,7 @@ class VisNetwork(visualization: Visualization) extends Actor with actor.Network 
       synapses += ((aId -> bId) -> new Synapse(neurons(aId), neurons(bId), weight))
       updateGraphTopology()
 
-    case spike@Spike(a, b, weight) =>
+    case spike @ Spike(a, b, weight) =>
       visualization.visualizeSpike(neurons(a.path.name), neurons(b.path.name), weight)
       networkBehavior(spike)
 
@@ -52,6 +52,10 @@ class VisNetwork(visualization: Visualization) extends Actor with actor.Network 
 
     case UpdatedPotential(neuron, potential) =>
       neurons(neuron.path.name).potential = potential
+      updateGraphAppearance()
+
+    case UpdatedSynapseWeight(a, b, weight) =>
+      synapses(a.path.name -> b.path.name).weight = weight
       updateGraphAppearance()
 
   }: Receive) orElse networkBehavior

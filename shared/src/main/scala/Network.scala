@@ -28,14 +28,13 @@ trait Network extends Actor {
     case Spike(a, b, weight) =>
       val interval = spikeDuration * 1.5
       spikeData += SpikeEvent(b, globalNow)
-      if(spikeData.size > 1 && spikeData.min.time - spikeData.max.time > interval)
-      {
+      if (spikeData.size > 1 && spikeData.min.time - spikeData.max.time > interval) {
         while (spikeData.size > 1 && (spikeData.min.time - spikeData.max.time) > interval) {
           val earlier = spikeData.dequeue
           val laters = spikeData.takeWhile(later => (earlier.time - later.time) <= interval)
           val candidates = laters.filter(_.neuron != earlier.neuron).groupBy(_.neuron)
           for ((later, spikes) <- candidates) {
-            if(spikes.size > 10)
+            if (spikes.size > 10)
               earlier.neuron ! Strengthen(later)
           }
         }
@@ -49,28 +48,28 @@ trait Network extends Actor {
         case KeyboardSensorType(key) => context.actorOf(Props(new KeyboardSensor(key, n)))
       }
 
-        case AddMotor(motor, fixedPos) =>
-          val n = newNeuron(stayAlive = true, attachedMotor = Some(motor))
-          actions += n
-          self ! AddedNeuron(n, initialFireThreshold, fixedPos)
+    case AddMotor(motor, fixedPos) =>
+      val n = newNeuron(stayAlive = true, attachedMotor = Some(motor))
+      actions += n
+      self ! AddedNeuron(n, initialFireThreshold, fixedPos)
 
-        case AddNeuron(fireThreshold) =>
-          val n = newNeuron(fireThreshold)
-          sender ! n
-          self ! AddedNeuron(n, fireThreshold)
+    case AddNeuron(fireThreshold) =>
+      val n = newNeuron(fireThreshold)
+      sender ! n
+      self ! AddedNeuron(n, fireThreshold)
 
-        case Signal(data) =>
-          for ((sensor, d) <- sensors zip data) {
-            sensor ! d
-          }
+    case Signal(data) =>
+      for ((sensor, d) <- sensors zip data) {
+        sensor ! d
+      }
 
-        // TODO: when to trigger this?
-        case ImDead =>
-          sensors -= sender
-          actions -= sender
+    // TODO: when to trigger this?
+    case ImDead =>
+      sensors -= sender
+      actions -= sender
 
-        case unknown =>
-          println(s"unknown message: $unknown")
+    case unknown =>
+      println(s"unknown message: $unknown")
 
   }
 }
