@@ -16,8 +16,8 @@ object Constants {
   val restPotential = 0.3
   val fireDelay = spikeDuration / 10
   val pruneThreshold = 10 seconds
-  def lowerFireThreshold(threshold: Double) = threshold * 0.9
-  def higherFireThreshold(threshold: Double) = threshold * 1.374
+  def lowerFireThreshold(threshold: Double) = threshold * 0.95
+  def higherFireThreshold(threshold: Double) = threshold * 1.3
 
   def hebbObservationInterval = spikeDuration / 10
   def hebbLearnInterval = spikeDuration * 10

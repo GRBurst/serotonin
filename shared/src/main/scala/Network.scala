@@ -15,7 +15,9 @@ import serotonin.Common._
 import Messages._
 
 trait Network extends Actor {
-  def newNeuron(fireThreshold: Double = initialFireThreshold, stayAlive: Boolean = false) = context.actorOf(Props(new Neuron(fireThreshold, stayAlive)))
+  def newNeuron(fireThreshold: Double = initialFireThreshold, stayAlive: Boolean = false, attachedMotor: Option[ActorRef] = None) = {
+    context.actorOf(Props(new Neuron(fireThreshold, stayAlive, attachedMotor)))
+  }
 
   val sensors = mutable.ArrayBuffer.empty[ActorRef]
   val actions = mutable.ArrayBuffer.empty[ActorRef]
@@ -29,14 +31,17 @@ trait Network extends Actor {
   // context.system.scheduler.schedule(0 seconds, hebbLearnInterval, self, HebbEvaluation)
 
   val networkBehavior: Receive = {
-    case AddSensor =>
+    case AddSensor(sensorType) =>
       val n = newNeuron(stayAlive = true)
       sensors += n
       self ! AddedNeuron(n, initialFireThreshold)
+      sensorType match {
+        case KeyboardSensorType(key) => context.actorOf(Props(new KeyboardSensor(key, n)))
+      }
     // graph += n
 
-    case AddAction =>
-      val n = newNeuron(stayAlive = true)
+    case AddMotor(motor) =>
+      val n = newNeuron(stayAlive = true, attachedMotor = Some(motor))
       actions += n
       self ! AddedNeuron(n, initialFireThreshold)
     // graph += n
@@ -56,6 +61,9 @@ trait Network extends Actor {
       // graph -= sender
       sensors -= sender
       actions -= sender
+
+    case unknown =>
+      println(s"unknown message: $unknown")
 
     // case data: FireEvent =>
     //   fireData += data

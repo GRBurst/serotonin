@@ -14,11 +14,12 @@ import serotonin.Constants._
 import serotonin.Common._
 import Messages._
 
-class Neuron(var fireThreshold: Double, stayAlive: Boolean) extends Actor {
+class Neuron(var fireThreshold: Double, stayAlive: Boolean, attachedMotor: Option[ActorRef] = None) extends Actor {
   import context.{parent => network}
 
   val targets = mutable.HashMap.empty[ActorRef, Double].withDefaultValue(0.0)
   val sources = mutable.HashSet[ActorRef]()
+  var hasTargets = false
 
   var lastReceivedSpike = localNow
   var lastFired = globalNow
@@ -35,17 +36,21 @@ class Neuron(var fireThreshold: Double, stayAlive: Boolean) extends Actor {
     network ! UpdatedPotential(self, newPotential)
   }
 
+  if (sources.isEmpty && attachedMotor.isDefined)
+    self ! Fire
+
   def receive = {
     case spike: Double =>
-      val high = potential + spike
-      potential = high
+      val newPotential = potential + spike
+      potential = newPotential
       lastReceivedSpike = localNow
-      if (high > fireThreshold)
+      if (newPotential > fireThreshold + restPotential)
         self ! Fire
     // println(s"\n-> ${self.path.name} Received spike $spike => $potential")
 
     case Fire =>
-      if (targets.isEmpty) {
+      if (targets.isEmpty && hasTargets == false) {
+        hasTargets = true // avoid creation of more than one neuron
         (network ? AddNeuron(higherFireThreshold(fireThreshold))).mapTo[ActorRef].map(n => Strengthen(n)).pipeTo(self)
       } else {
         targets.foreach {
@@ -54,7 +59,13 @@ class Neuron(var fireThreshold: Double, stayAlive: Boolean) extends Actor {
             context.system.scheduler.scheduleOnce(spikeDuration, target, weight)
         }
       }
-      potential = restPotential
+      attachedMotor.foreach { motor =>
+        if (sources.isEmpty)
+          context.system.scheduler.scheduleOnce(util.Random.nextInt(4000) milliseconds, self, Fire)
+
+        motor ! Fire
+      }
+      potential = 0 //restPotential
       lastFired = globalNow
       fireThreshold = lowerFireThreshold(fireThreshold)
       network ! UpdatedFireThreshold(self, fireThreshold)
@@ -62,13 +73,25 @@ class Neuron(var fireThreshold: Double, stayAlive: Boolean) extends Actor {
     // print(s".")
 
     case Strengthen(target) =>
+      // strenghen self -> target
+      // self.targets += target
+      // target.sources += self
+      if (target == self) {
+        println("WARNING: target == self")
+      }
+      if (sender == self) {
+        println("WARNING: sender == self")
+      }
+      val newWeight = (targets(target) + strengthenWeight) min 1.0
       if (targets.get(target).isEmpty) network ! AddedSynapse(self, target, strengthenWeight)
-      else network ! UpdatedSynapseWeight(self, target, (targets(target) + strengthenWeight) min 1.0)
-      targets(target) = (targets(target) + strengthenWeight) min 1.0
+      else network ! UpdatedSynapseWeight(self, target, newWeight)
+      targets(target) = newWeight
+      hasTargets = true
       // println(s"Strenghen: ${self.path.name} -[${targets(target)}]-> ${target.path.name}")
-      sender ! IFollowYou
+      target ! IAmSourceOfYou
 
-    case IFollowYou =>
+    case IAmSourceOfYou =>
+      // println(s"($sender) is source of me ($self)")
       sources += sender
 
     case Probe =>

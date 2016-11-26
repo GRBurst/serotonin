@@ -11,9 +11,11 @@ object Messages {
   case class FireEvent(neuron: ActorRef, time: FiniteDuration)
   implicit val mypotentialOrdering = Ordering.by[FireEvent, FiniteDuration](-_.time)
   case object ImDead
-  case object IFollowYou
-  case object AddSensor
-  case object AddAction
+  case object IAmSourceOfYou
+  case class AddSensor(sensorType: SensorType)
+  sealed trait SensorType
+  case class KeyboardSensorType(key: String) extends SensorType
+  case class AddMotor(motor: ActorRef)
   case class AddNeuron(fireThreshold: Double)
   case class Signal(data: List[Double])
   case object Graph
