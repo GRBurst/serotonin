@@ -51,6 +51,7 @@ class Visualization(val dimensions: Vec2 = Vec2(400, 300)) {
     .attr("width", width)
     .attr("height", height)
 
+  var neuronGradients = svg.append("defs").selectAll("radialGradient").data(js.Array[Neuron]())
   var synapseLines = svg.append("g").selectAll("line").data(js.Array[Synapse]())
   var neuronCircles = svg.append("g").selectAll("circle").data(js.Array[Neuron]())
   val spikeGroup = svg.append("g")
@@ -74,9 +75,9 @@ class Visualization(val dimensions: Vec2 = Vec2(400, 300)) {
 
   def potentialColor = d3.interpolateRgb("#7DBBFF", "#FFE77D")
   def updateGraphTopology(nodes: js.Array[Neuron], links: js.Array[Synapse]) {
-    println("updateGraph")
     synapseLines = synapseLines.data(links)
     neuronCircles = neuronCircles.data(nodes, (n: Neuron) => n.id)
+    neuronGradients = neuronGradients.data(nodes, (n: Neuron) => n.id)
 
     synapseLines.enter()
       .append("line")
@@ -87,6 +88,19 @@ class Visualization(val dimensions: Vec2 = Vec2(400, 300)) {
       .attr("stroke", "black")
       .attr("stroke-width", 1)
 
+    val gradients = neuronGradients.enter()
+      .append("radialGradient")
+      .attr("id", (d: Neuron) => d.id)
+
+    gradients
+      .append("stop").attr("offset", "0%").attr("stop-color", "#FFE77D")
+    gradients
+      .append("stop").attr("class", "gradient-center1")
+    gradients
+      .append("stop").attr("class", "gradient-center2")
+    gradients
+      .append("stop").attr("offset", "100%").attr("stop-color", "#7DBBFF")
+
     updateGraphAppearance()
 
     force.nodes(nodes).links(links)
@@ -94,10 +108,16 @@ class Visualization(val dimensions: Vec2 = Vec2(400, 300)) {
   }
 
   def updateGraphAppearance() {
+    // neuronGradients.selectAll(".gradient-center1")
+    //   .attr("offset", (d: Neuron) => s"${100 * d.potential / (restPotential + d.fireThreshold)}%").attr("stop-color", "#FFE77D")
+    // neuronGradients.selectAll(".gradient-center2")
+    //   .attr("offset", (d: Neuron) => s"${100 * d.potential / (restPotential + d.fireThreshold)}%").attr("stop-color", "#7DBBFF")
+
     neuronCircles
       .attr("r", (d: Neuron) => 1.0 / sqrt(restPotential + d.fireThreshold) * 5)
       // .style("opacity", (d: Neuron) => 1.0 / d.fireThreshold)
       .attr("fill", (d: Neuron) => potentialColor(d.potential / (restPotential + d.fireThreshold)))
+      // .attr("fill", (d: Neuron) => s"url(#${d.id})")
       .attr("cx", (d: Neuron) => d.x)
       .attr("cy", (d: Neuron) => d.y)
 
