@@ -6,7 +6,6 @@ import math._
 import akka.actor.{ActorRef, ActorSystem, Props, Actor, PoisonPill}
 import akka.pattern.{ask, pipe}
 import akka.util.Timeout
-import pharg._
 import scala.unchecked
 
 object Constants {
@@ -16,7 +15,7 @@ object Constants {
   val restPotential = 0.3
   val fireDelay = spikeDuration / 10
   val pruneThreshold = 10 seconds
-  def lowerFireThreshold(threshold: Double) = threshold * 0.95
+  def lowerFireThreshold(threshold: Double) = threshold * 0.99
   def higherFireThreshold(threshold: Double) = threshold * 1.3
 
   def hebbObservationInterval = spikeDuration / 10

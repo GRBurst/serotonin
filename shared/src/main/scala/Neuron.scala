@@ -7,7 +7,6 @@ import math._
 import akka.actor.{ActorRef, ActorSystem, Props, Actor, PoisonPill}
 import akka.pattern.{ask, pipe}
 import akka.util.Timeout
-import pharg._
 import scala.unchecked
 
 import serotonin.Constants._

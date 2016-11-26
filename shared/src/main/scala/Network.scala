@@ -7,7 +7,6 @@ import math._
 import akka.actor.{ActorRef, ActorSystem, Props, Actor, PoisonPill}
 import akka.pattern.{ask, pipe}
 import akka.util.Timeout
-import pharg._
 import scala.unchecked
 
 import serotonin.Constants._
@@ -27,14 +26,14 @@ trait Network extends Actor {
   val networkBehavior: Receive = {
     case Spike(a, b, weight) =>
       val interval = spikeDuration * 1.5
-      spikeData += SpikeEvent(b, globalNow)
+      spikeData += SpikeEvent(a, globalNow)
       if (spikeData.size > 1 && spikeData.min.time - spikeData.max.time > interval) {
         while (spikeData.size > 1 && (spikeData.min.time - spikeData.max.time) > interval) {
           val earlier = spikeData.dequeue
           val laters = spikeData.takeWhile(later => (earlier.time - later.time) <= interval)
           val candidates = laters.filter(_.neuron != earlier.neuron).groupBy(_.neuron)
           for ((later, spikes) <- candidates) {
-            if (spikes.size > 10)
+            if (spikes.size > 5)
               earlier.neuron ! Strengthen(later)
           }
         }
