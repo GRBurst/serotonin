@@ -21,32 +21,34 @@ import Constants._
 class VisNetwork(visualization: Visualization) extends Actor with actor.Network {
   var neurons = mutable.HashMap[String, Neuron]()
   var synapses = mutable.HashMap[(String, String), Synapse]()
-  def updateGraphViz() {
-    visualization.updateGraph(neurons.values.toJSArray, synapses.values.toJSArray)
+  def updateGraphTopology() {
+    visualization.updateGraphTopology(neurons.values.toJSArray, synapses.values.toJSArray)
   }
+  import visualization.updateGraphAppearance
 
   def receive: Receive = ({
 
     case AddedNeuron(neuron, fireThreshold) =>
       val id = neuron.path.name
       neurons += (id -> new Neuron(id, fireThreshold, restPotential, visualization.width / 2, visualization.height / 2))
+      updateGraphTopology()
 
     case AddedSynapse(a, b, weight) =>
       val aId = a.path.name
       val bId = b.path.name
       synapses += ((aId -> bId) -> new Synapse(neurons(aId), neurons(bId), weight))
-      updateGraphViz()
+      updateGraphTopology()
 
     case Spike(a, b, weight) =>
       visualization.sendSpike(neurons(a.path.name), neurons(b.path.name), weight)
 
     case UpdatedFireThreshold(neuron, threshold) =>
       neurons(neuron.path.name).fireThreshold = threshold
-      updateGraphViz()
+      updateGraphAppearance()
 
     case UpdatedPotential(neuron, potential) =>
       neurons(neuron.path.name).potential = potential
-      updateGraphViz()
+      updateGraphAppearance()
 
   }: Receive) orElse networkBehavior
 }

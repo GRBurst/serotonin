@@ -67,18 +67,25 @@ class Visualization {
   })
 
   def potentialColor = d3.interpolateRgb("#7DBBFF", "#FFE77D")
-  def updateGraph(nodes: js.Array[Neuron], links: js.Array[Synapse]) {
+  def updateGraphTopology(nodes: js.Array[Neuron], links: js.Array[Synapse]) {
+    println("updateGraph")
     synapseLines = synapseLines.data(links)
     neuronCircles = neuronCircles.data(nodes, (n: Neuron) => n.id)
 
     synapseLines.enter()
       .append("line")
       .attr("stroke", "gray")
-      .attr("stroke-width", (d: Synapse) => d.weight * 3)
 
     neuronCircles.enter()
       .append("circle")
 
+    updateGraphAppearance()
+
+    force.nodes(nodes).links(links)
+    force.start()
+  }
+
+  def updateGraphAppearance() {
     neuronCircles
       .attr("r", (d: Neuron) => 1.0 / sqrt(restPotential + d.fireThreshold) * 5)
       // .style("opacity", (d: Neuron) => 1.0 / d.fireThreshold)
@@ -88,8 +95,8 @@ class Visualization {
       .attr("cx", (d: Neuron) => d.x)
       .attr("cy", (d: Neuron) => d.y)
 
-    force.nodes(nodes).links(links)
-    force.start()
+    synapseLines
+      .attr("stroke-width", (d: Synapse) => d.weight * 3)
   }
 
   def sendSpike(source: Neuron, target: Neuron, strength: Double) {
