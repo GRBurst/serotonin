@@ -1,6 +1,7 @@
 name := "serotonin"
 
-scalaVersion in ThisBuild := "2.12.0"
+scalaVersion in ThisBuild := "2.12.13"
+
 
 lazy val root = project.in(file(".")).
   aggregate(serotoninJS, serotoninJVM).
@@ -14,9 +15,10 @@ lazy val serotonin = crossProject.in(file(".")).
     name := "serotonin",
     version := "0.1-SNAPSHOT",
     libraryDependencies ++= (
-      "com.github.fdietze" %%% "vectory" % "0.1.0-SNAPSHOT" ::
+      "com.github.fdietze" % "vectory" % "d0e70f4" ::
       Nil
-    )
+    ),
+    resolvers += ("jitpack" at "https://jitpack.io")
   )
   .jvmSettings(
     libraryDependencies ++= (
@@ -27,7 +29,7 @@ lazy val serotonin = crossProject.in(file(".")).
   )
   .jsSettings(
     libraryDependencies ++= (
-      "eu.unicredit" %%% "akkajsactor" % "0.2.4.12" ::
+      "eu.unicredit" %%% "akkajsactor" % "0.2.4.14" ::
       "org.singlespaced" %%% "scalajs-d3" % "0.3.4" ::
       Nil
     ),
