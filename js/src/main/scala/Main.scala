@@ -7,9 +7,7 @@ import scala.scalajs.js.timers._
 import org.scalajs.dom._
 import js.JSConverters._
 
-import org.singlespaced.d3js.Ops._
-import org.singlespaced.d3js.d3
-import org.singlespaced.d3js
+import d3v4._
 
 import akka.actor._
 import scala.concurrent.duration._
@@ -19,8 +17,8 @@ import vectory._
 import actor.Messages._
 import Constants._
 
-object Main extends JSApp {
-  def main() {
+object Main {
+  def main(args:Array[String]): Unit {
     lazy val system = ActorSystem("serotonin")
     import system.dispatcher // Execution Context
     system.scheduler.scheduleOnce(0 seconds) {

@@ -1,43 +1,20 @@
 name := "serotonin"
 
-scalaVersion in ThisBuild := "2.12.13"
+scalaVersion in ThisBuild := "2.13.4"
 
+enablePlugins(ScalaJSBundlerPlugin)
+/* scalaJSUseMainModuleInitializer := true */
 
-lazy val root = project.in(file(".")).
-  aggregate(serotoninJS, serotoninJVM).
-  settings(
-    publish := {},
-    publishLocal := {}
-  )
+useYarn := true
 
-lazy val serotonin = crossProject.in(file(".")).
-  settings(
-    name := "serotonin",
-    version := "0.1-SNAPSHOT",
-    libraryDependencies ++= (
-      "com.github.fdietze" % "vectory" % "d0e70f4" ::
-      Nil
-    ),
-    resolvers += ("jitpack" at "https://jitpack.io")
-  )
-  .jvmSettings(
-    libraryDependencies ++= (
-      "org.scala-js" %% "scalajs-stubs" % "0.6.13" % "provided" ::
-      "com.typesafe.akka" %% "akka-actor" % "2.4.12" ::
-      Nil
-    )
-  )
-  .jsSettings(
-    libraryDependencies ++= (
-      "eu.unicredit" %%% "akkajsactor" % "0.2.4.14" ::
-      "org.singlespaced" %%% "scalajs-d3" % "0.3.4" ::
-      Nil
-    ),
-    persistLauncher := true
-  )
+resolvers += ("jitpack" at "https://jitpack.io")
 
-lazy val serotoninJVM = serotonin.jvm
-lazy val serotoninJS = serotonin.js.enablePlugins(WorkbenchPlugin)
+libraryDependencies ++= (
+  "com.github.fdietze.vectory" %%% "vectory" % "7780239164" ::
+  "org.akka-js" %%% "akkajsactor" % "2.2.6.9" ::
+  "com.github.fdietze.scala-js-d3v4" %%% "scala-js-d3v4" % "be15edec" ::
+  Nil
+)
 
 scalacOptions in ThisBuild ++= (
   "-unchecked" ::
@@ -46,3 +23,5 @@ scalacOptions in ThisBuild ++= (
   "-language:_" ::
   Nil
 )
+
+Global / onChangedBuildSource := ReloadOnSourceChanges

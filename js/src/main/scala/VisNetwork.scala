@@ -7,9 +7,7 @@ import scala.scalajs.js.timers._
 import org.scalajs.dom.Event
 import js.JSConverters._
 
-import org.singlespaced.d3js.Ops._
-import org.singlespaced.d3js.d3
-import org.singlespaced.d3js
+import d3v4._
 
 import akka.actor._
 import scala.concurrent.duration._
