@@ -18,7 +18,7 @@ import actor.Messages._
 import Constants._
 
 object Main {
-  def main(args:Array[String]): Unit {
+  def main(args:Array[String]): Unit = {
     lazy val system = ActorSystem("serotonin")
     import system.dispatcher // Execution Context
     system.scheduler.scheduleOnce(0 seconds) {

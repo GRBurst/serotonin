@@ -3,7 +3,7 @@ name := "serotonin"
 scalaVersion in ThisBuild := "2.13.4"
 
 enablePlugins(ScalaJSBundlerPlugin)
-/* scalaJSUseMainModuleInitializer := true */
+scalaJSUseMainModuleInitializer := true
 
 useYarn := true
 

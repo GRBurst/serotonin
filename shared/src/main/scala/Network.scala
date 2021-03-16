@@ -27,7 +27,7 @@ trait Network extends Actor {
     case Spike(a, b, weight) =>
       val interval = spikeDuration * 1.5
       spikeData += SpikeEvent(a, globalNow)
-      if (spikeData.size > 1 && spikeData.min.time - spikeData.max.time > interval) {
+      if (spikeData.size > 1 && (spikeData.min.time - spikeData.max.time) > interval) { // redundant?
         while (spikeData.size > 1 && (spikeData.min.time - spikeData.max.time) > interval) {
           val earlier = spikeData.dequeue
           val laters = spikeData.takeWhile(later => (earlier.time - later.time) <= interval)
